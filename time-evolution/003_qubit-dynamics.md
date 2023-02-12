@@ -30,7 +30,7 @@ Here we import the required modules for this example.
 ```python tags=[]
 import matplotlib.pyplot as plt
 import numpy as np
-from qutip import Bloch, Bloch3d, about, basis, mesolve, sigmam, sigmap, sigmax, sigmay, sigmaz
+from qutip import expect, Bloch, Bloch3d, about, basis, mesolve, sigmam, sigmap, sigmax, sigmay, sigmaz
 
 %matplotlib inline
 ```
@@ -41,10 +41,6 @@ Define
 `add_evolving_states(self, states)`
 and
 `animate_bloch(states, filename='', duration=0.1)`
-
-```python
-
-```
 
 ```python tags=[]
 def _(self, states, kind='point'):
@@ -73,12 +69,48 @@ def _(self, states, kind='point'):
         for i in range(len(states) - 1):
             self.add_line(states[i], states[i+1], color=colors[i], fmt='')
     else:
-        raise Exception('Wrong kind. Allowed: point, arc, line.')
+        raise Exception('Wrong kind. Allowed kinds: point, arc, line.')
         
     self.vector_color = [colors[0], colors[-1]]
     self.add_states(states[0])
     self.add_states(states[-1])
 Bloch.add_evolving_states = _
+```
+
+```python
+def _(self, states, kind='point'):
+    """
+    Add a curve representing the evolution of a state.
+    Evolution: green → yellow.
+    """
+    import matplotlib
+    length = len(states)
+    nrm = matplotlib.colors.Normalize(0,length)
+    colors = matplotlib.cm.summer(nrm(range(length))) # options: cool, summer, winter, autumn etc.
+
+    # # Customize sphere properties
+    # self.point_color = list(colors) # options: 'r', 'g', 'b' etc.
+    # self.point_marker = ['o']
+    # self.point_size = 30
+
+    if kind == 'point':
+        # Use the line below to add states as points
+        self.add_states(states, kind='point')
+    # elif kind == 'arc':
+    #     # Use the line below to add states as arcs
+    #     for i in range(len(states) - 1):
+    #         self.add_arc(states[i], states[i+1], color=colors[i], fmt='')
+    # elif kind == 'line':
+    #     for i in range(len(states) - 1):
+    #         self.add_line(states[i], states[i+1], color=colors[i], fmt='')
+    else:
+        raise Exception('Wrong kind. Allowed kinds: point.')
+        
+    # self.vector_color = [colors[0], colors[-1]]
+    self.add_states(states[0])
+    self.add_states(states[-1])
+    return
+Bloch3d.add_evolving_states = _
 ```
 
 ```python tags=[]
@@ -120,6 +152,41 @@ def animate_bloch(states, filename='', duration=0.1):
     
     filename = 'bloch_anim.gif' if not filename else filename
     imageio.mimsave(filename, images, duration=duration)
+```
+
+```python
+def state2blochvec(state):
+    x = expect(sigmax(), state)
+    y = expect(sigmay(), state)
+    z = expect(sigmaz(), state)
+    return np.array([x, y, z])
+
+
+def states2points(states):
+    points = [state2blochvec(s) for s in states]
+    return np.array(points)
+
+def bloch_norm(state):
+    return sum(state2blochvec(state) ** 2)
+```
+
+```python
+def plot_norm(tlist, states):
+    norms = [bloch_norm(state) for state in states]
+    norms = np.array(norms)
+    plt.plot(tlist, norms)
+    plt.title('Bloch vector norm')
+    plt.xlabel('t')
+    plt.show()
+    return
+
+def plot_purity(tlist, states):
+    purities = [(r*r).tr() for r in states]
+    plt.plot(tlist, purities)
+    plt.title(r'Purity $Tr(\rho^2)$')
+    plt.xlabel('t')
+    plt.show()
+    return
 ```
 
 ### System setup
@@ -215,15 +282,6 @@ To change the phase of the qubit we introduce the following collapse operator:
 
 $C = \sqrt{\gamma_p} \; \sigma_z$
 
-```python
-def plot_norm(tlist, states):
-    norms = [state.norm() for state in states]
-    plt.plot(tlist, norms)
-    plt.ylabel('norm')
-    plt.xlabel('t')
-    plt.show()
-```
-
 ```python tags=[]
 gamma_phase = 0.5
 c_ops = [np.sqrt(gamma_phase) * sigmaz()]
@@ -232,10 +290,27 @@ tlist = np.linspace(0, 10, 500)
 # solve dynamics
 result = mesolve(H, psi0, tlist, c_ops) #, [sigmax(), sigmay(), sigmaz()])
 
-plot_norm(tlist, result.states)
+# plot_ 1/2 norm^2+1(tlist, result.states)
+norms = [bloch_norm(state) for state in result.states]
+norms = np.array(norms)
+plt.plot(tlist, (norms ** 2 + 1)/2, label='Bloch vector norm')
+
+# plot_purity(tlist, result.states)
+purities = [(r*r).tr() for r in result.states]
+plt.plot(tlist, purities, label=r'Purity $Tr(\rho^2)$')
+plt.xlabel('t')
+plt.legend()
+plt.show()
+
 # Create Bloch sphere plot
 sphere = Bloch()
 sphere.add_evolving_states(result.states, kind='line')
+sphere.show()
+```
+
+```python
+sphere = Bloch3d()
+sphere.add_evolving_states(result.states, kind='point')
 sphere.show()
 ```
 
@@ -256,7 +331,7 @@ c_ops = [np.sqrt(gamma_relax) * sigmam()]
 tlist = np.linspace(0, 20, 500)
 
 # solve dynamics
-result = mesolve(H, psi0, tlist, c_ops) #, [sigmax(), sigmay(), sigmaz()])
+result = mesolve(H, psi0, tlist, c_ops)
 
 plot_norm(tlist, result.states)
 
@@ -267,59 +342,9 @@ sphere.show()
 ```
 
 ```python
-def _(self, states, kind='point'):
-    """
-    Add a curve representing the evolution of a state.
-    Evolution: green → yellow.
-    """
-    import matplotlib
-    length = len(states)
-    nrm = matplotlib.colors.Normalize(0,length)
-    colors = matplotlib.cm.summer(nrm(range(length))) # options: cool, summer, winter, autumn etc.
-
-    # Customize sphere properties
-    # self.point_color = list(colors) # options: 'r', 'g', 'b' etc.
-    # self.point_marker = ['o']
-    # self.point_size = [30]
-
-    if kind == 'point':
-        # Use the line below to add states as points
-        self.add_states(states, kind='point')
-    elif kind == 'arc':
-        # Use the line below to add states as arcs
-        for i in range(len(states) - 1):
-            self.add_arc(states[i], states[i+1], color=colors[i], fmt='')
-    elif kind == 'line':
-        for i in range(len(states) - 1):
-            self.add_line(states[i], states[i+1], color=colors[i], fmt='')
-    else:
-        raise Exception('Wrong kind. Allowed: point, arc, line.')
-        
-    # self.vector_color = [colors[0], colors[-1]]
-    self.add_states(states[0])
-    self.add_states(states[-1])
-    return
-
-gamma_relax = 0.5
-c_ops = [np.sqrt(gamma_relax) * sigmam()]
-
-tlist = np.linspace(0, 20, 500)
-
-# solve dynamics
-result = mesolve(H, psi0, tlist, c_ops) #, [sigmax(), sigmay(), sigmaz()])
-
-plot_norm(tlist, result.states)
-
 # Create Bloch sphere plot
 sphere = Bloch3d()
-Bloch3d.add_evolving_states = _
 sphere.add_evolving_states(result.states, kind='point')
-sphere.show()
-```
-
-```python
-sphere = Bloch3d()
-sphere.add_states(basis(2, 0))
 sphere.show()
 ```
 
@@ -330,7 +355,7 @@ Using the methods above, you can simulate any dissipative quantum system, whose 
 
 ## About
 
-```python
+```python tags=[]
 about()
 ```
 
