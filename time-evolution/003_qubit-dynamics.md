@@ -30,20 +30,22 @@ Here we import the required modules for this example.
 ```python tags=[]
 import matplotlib.pyplot as plt
 import numpy as np
-from qutip import expect, Bloch, Bloch3d, about, basis, mesolve, sigmam, sigmap, sigmax, sigmay, sigmaz
+from qutip import expect, Bloch, Bloch3d, about, basis, mesolve, sigmam, sigmap, sigmax, sigmay, sigmaz, qeye
 
 %matplotlib inline
 ```
 
+<!-- #region tags=[] jp-MarkdownHeadingCollapsed=true -->
 ### Helpful functions
 
 Define
 `add_evolving_states(self, states)`
 and
 `animate_bloch(states, filename='', duration=0.1)`
+<!-- #endregion -->
 
 ```python tags=[]
-def _(self, states, kind='point'):
+def _(self, states, kind='point', vector=True):
     """
     Add a curve representing the evolution of a state.
     Evolution: green → yellow.
@@ -70,15 +72,16 @@ def _(self, states, kind='point'):
             self.add_line(states[i], states[i+1], color=colors[i], fmt='')
     else:
         raise Exception('Wrong kind. Allowed kinds: point, arc, line.')
-        
-    self.vector_color = [colors[0], colors[-1]]
-    self.add_states(states[0])
-    self.add_states(states[-1])
+    
+    if vector:
+        self.vector_color = [colors[0], colors[-1]]
+        self.add_states(states[0])
+        self.add_states(states[-1])
 Bloch.add_evolving_states = _
 ```
 
 ```python
-def _(self, states, kind='point'):
+def _(self, states, kind='point', vector=True):
     """
     Add a curve representing the evolution of a state.
     Evolution: green → yellow.
@@ -89,9 +92,9 @@ def _(self, states, kind='point'):
     colors = matplotlib.cm.summer(nrm(range(length))) # options: cool, summer, winter, autumn etc.
 
     # # Customize sphere properties
-    # self.point_color = list(colors) # options: 'r', 'g', 'b' etc.
+    self.point_color = list(colors) # options: 'r', 'g', 'b' etc.
     # self.point_marker = ['o']
-    # self.point_size = 30
+    self.point_size = 0.05
 
     if kind == 'point':
         # Use the line below to add states as points
@@ -105,10 +108,11 @@ def _(self, states, kind='point'):
     #         self.add_line(states[i], states[i+1], color=colors[i], fmt='')
     else:
         raise Exception('Wrong kind. Allowed kinds: point.')
-        
-    # self.vector_color = [colors[0], colors[-1]]
-    self.add_states(states[0])
-    self.add_states(states[-1])
+    
+    if vector:
+        self.vector_color = [colors[0], colors[-1]]
+        self.add_states(states[0])
+        self.add_states(states[-1])
     return
 Bloch3d.add_evolving_states = _
 ```
@@ -189,6 +193,11 @@ def plot_purity(tlist, states):
     return
 ```
 
+<!-- #region tags=[] -->
+## Simple example and expectation
+<!-- #endregion -->
+
+<!-- #region tags=[] -->
 ### System setup
 We will start with a basic Hamiltonian for the qubit, which flips the state of the qubit represented by the Pauli Matrix $\sigma_x$.
 
@@ -200,6 +209,7 @@ $C = \sqrt{g} \sigma_z$
 
 where $g$ is the dissipation coefficient.
 We define the qubit to be in the ground state at $t=0$.
+<!-- #endregion -->
 
 ```python tags=[]
 # coefficients
@@ -246,21 +256,26 @@ plt.legend();
 
 We can also visualise the dynamics of the qubit state on the Bloch sphere. To generate more interesting plots, we consider slightly more complex dynamics of the qubit state.
 
-### Rotating State
-
 Consider the following Hamiltonian: 
 
 $H = \Delta ( \, cos(\theta) \, \sigma_z + sin(\theta) \, \sigma_x  \, )$.
 
-$\theta$ defines the angle of the qubit state between the $z$-axis toward the $x$-axis. We can again use `mesolve` to obtain the dynamics of the system. Here, we pass an empty list of collapse operators.
-
-```python tags=[]
+```python
+delta = 2 * np.pi
 # Angle
 theta = 0.2 * np.pi
 
+psi0 = basis(2, 0)
+
 # Hamiltonian
 H = delta * (np.cos(theta) * sigmaz() + np.sin(theta) * sigmax())
+```
 
+### Rotating State
+
+$\theta$ defines the angle of the qubit state between the $z$-axis toward the $x$-axis. We can again use `mesolve` to obtain the dynamics of the system. Here, we pass an empty list of collapse operators.
+
+```python tags=[]
 # Obtain Time Evolution
 tlist = np.linspace(0, 5, 500)
 result = mesolve(H, psi0, tlist, []) #, [sigmax(), sigmay(), sigmaz()])
@@ -324,9 +339,54 @@ $C = \sqrt{\gamma_r} \sigma_-$
 
 This induces spontaneous flips of the qubit from the excited state to the ground state with a rate $\gamma_r$. Again we can observe the qubit dynamics on the Bloch sphere.
 
+
+#### Notes
+
+> It seems that the pattern of the evolution of qubit is not so relavent to the initial state, rather to the Hamiltinian.
+> 
+> With $\sigma_-$ collapse operator:
+> 
+> - $H=\mathrm{Id}$, the state falls to $|1\rangle$.
+> - $H=X$ or $H=Y$ or $H=X+Y$, it spins in the perpendicular plane to the Hamiltonian and spirals into a nearly maximally mixed state.
+> - $H = \Delta ( \, cos(\theta) \, \sigma_z + sin(\theta) \, \sigma_x  \, )$, it goes spirally and diagonally.
+
 ```python tags=[]
 gamma_relax = 0.5
 c_ops = [np.sqrt(gamma_relax) * sigmam()]
+
+tlist = np.linspace(0, 20, 50)
+
+# solve dynamics
+result = mesolve(H, psi0, tlist, c_ops)
+
+# TRY...........................
+# psix = 1/np.sqrt(2) * (basis(2, 0) + basis(2, 1))
+# psiy = 1/np.sqrt(2) * (basis(2, 0) + 1j * basis(2, 1))
+# psiz = basis(2, 0)
+# # psi = 1/np.sqrt(3) * basis(2, 0) + 2/np.sqrt(3) * 
+result = mesolve(sigmax()+sigmay(), psi0, tlist, c_ops)
+
+plot_norm(tlist, result.states)
+
+# Create Bloch sphere plot
+sphere = Bloch()
+sphere.add_evolving_states(result.states, kind='point', vector=False)
+sphere.show()
+```
+
+```python
+# Create Bloch sphere plot
+sphere = Bloch3d()
+sphere.add_evolving_states(result.states, kind='point')
+sphere.show()
+```
+
+Below is
+$C = \sqrt{\gamma_r} \sigma_+$
+
+```python tags=[]
+gamma_relax = 0.5
+c_ops = [np.sqrt(gamma_relax) * sigmap()]
 
 tlist = np.linspace(0, 20, 500)
 
