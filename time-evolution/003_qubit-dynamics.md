@@ -35,7 +35,7 @@ from qutip import expect, Bloch, Bloch3d, about, basis, mesolve, sigmam, sigmap,
 %matplotlib inline
 ```
 
-<!-- #region tags=[] -->
+<!-- #region tags=[] jp-MarkdownHeadingCollapsed=true -->
 ### Helpful functions
 
 Define
@@ -357,7 +357,7 @@ c_ops = [np.sqrt(gamma_relax) * sigmam()]
 tlist = np.linspace(0, 20, 50)
 
 # solve dynamics
-# result = mesolve(H, psi0, tlist, c_ops)
+result = mesolve(H, psi0, tlist, c_ops)
 
 # TRY...........................
 # psix = 1/np.sqrt(2) * (basis(2, 0) + basis(2, 1))
