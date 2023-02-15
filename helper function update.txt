@@ -1,0 +1,7 @@
+newest helper functions:
+
+Bloch.add_evolving_states: 003
+
+Bloch3d.add_evolving_states: 003
+
+animate_bloch: 004
